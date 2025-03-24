@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тыва Поиск</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+      .search-box {
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+      }
+      .suggest-box {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(10px);
+      }
+      .result-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+      }
+      .suggest-box:hover {
+        cursor: pointer;
+        background-color: rgba(255, 255, 255, 0.95);
+        transform: translateY(-2px);
+        transition: all 0.2s ease-in-out;
+      }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-300 min-h-screen flex flex-col items-center justify-start pt-16">
+    <h1 class="text-4xl font-semibold text-gray-800 mb-8 text-center">
+        <span class="bg-gradient-to-r from-blue-500 to-green-500 text-transparent bg-clip-text">
+            ТЫВА ПОИСК
+        </span>
+        <p class="text-sm text-gray-600 mt-2">Тыва дылда хайгаашкын</p>
+    </h1>
+
+    <div class="w-full max-w-md mb-6">
+        <div class="flex rounded-full shadow-lg search-box">
+            <input
+                type="text"
+                id="search-input"
+                placeholder="Чүнү тып искаар сен?"
+                class="flex-grow rounded-l-full py-3 px-4 focus:outline-none text-gray-700"
+            />
+            <button id="search-button" class="bg-gradient-to-r from-blue-500 to-green-500 rounded-r-full py-3 px-6 text-white font-semibold shadow-md hover:shadow-lg transition duration-300">
+                ТЫВА ПОИСК
+            </button>
+        </div>
+    </div>
+
+    <div class="w-full max-w-lg mb-8">
+        <div class="text-center mb-4 text-gray-600">
+            Хайгаашкынны чадап көр:
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <div class="rounded-lg shadow-md py-2 px-3 text-center text-blue-700 font-medium suggest-box" data-query="Тываның төөгүзү">
+                Тываның төөгүзү
+            </div>
+            <div class="rounded-lg shadow-md py-2 px-3 text-center text-green-700 font-medium suggest-box" data-query="Тыва дыл">
+                Тыва дыл
+            </div>
+            <div class="rounded-lg shadow-md py-2 px-3 text-center text-purple-700 font-medium suggest-box" data-query="Кызыл хоорай">
+                Кызыл хоорай
+            </div>
+            <div class="rounded-lg shadow-md py-2 px-3 text-center text-orange-700 font-medium suggest-box" data-query="Тываның культуразы">
+                Тываның культуразы
+            </div>
+            <div class="rounded-lg shadow-md py-2 px-3 text-center text-red-700 font-medium suggest-box" data-query="Тываның чону">
+                Тываның чону
+            </div>
+            <div class="rounded-lg shadow-md py-2 px-3 text-center text-teal-700 font-medium suggest-box" data-query="Тываның бойдузу">
+                Тываның бойдузу
+            </div>
+        </div>
+    </div>
+
+    <div id="results-container" class="w-full max-w-2xl space-y-4 mt-8">
+        </div>
+
+    <script>
+    const searchInput = document.getElementById('search-input');
+    const searchButton = document.getElementById('search-button');
+    const resultsContainer = document.getElementById('results-container');
+    const suggestBoxes = document.querySelectorAll('.suggest-box');
+
+    // API-ның болжамдыг дөстери болгаш чадалары
+    const DEEPSEEK_API_KEY = "YOUR_DEEPSEEK_API_KEY";  // API-ң херек түлгүүрүнге солу
+    const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1/search";  // URL-ды DeepSeek-тен тодарадып ал
+    const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";    // API-ң херек түлгүүрүнге солу
+    const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";  // URL-ды Google-дан тодарадып ал
+
+    // DeepSeek болгаш Gemini-ниң харыыларын дыртыкчылаар фиктивтиг медээлер
+    const FAKE_DEEPSEEK_RESPONSES = {
+        "Тываның төөгүзү": [
+            "Тыва имеет богатую историю, начиная с древних времен...",
+            "В 13 веке Тува была частью Монгольской империи...",
+            "В 20 веке Тува вошла в состав СССР...",
+        ],
+        "Тыва дыл": [
+            "Тувинский язык относится к тюркской языковой семье...",
+            "В тувинском языке есть много заимствований из монгольского...",
+            "Современный тувинский алфавит основан на кириллице...",
+        ],
+        "Кызыл хоорай": [
+            "Кызыл - столица Республики Тыва...",
+            "Кызыл расположен в географическом центре Азии...",
+            "В Кызыле находятся важные культурные и исторические объекты...",
+        ],
+        "Тываның культуразы": [
+            "Культура Тувы уникальна и разнообразна...",
+            "В тувинской культуре особое место занимает горловое пение...",
+            "Традиционные ремесла Тувы включают резьбу по камню и дереву...",
+        ],
+         "Тываның чону": [
+            "Население Тувы состоит в основном из тувинцев...",
+            "Тувинцы имеют богатую культуру и традиции...",
+            "В Туве также проживают представители других национальностей...",
+        ],
+        "Тываның бойдузу": [
+            "Природа Тувы очень красива и разнообразна...",
+            "В Туве есть горы, степи, реки и озера...",
+             "В Туве водятся редкие виды животных и растений...",
+        ],
+        "привет": ["Здравствуйте!", "Экии!"],
+        "как дела": ["Хорошо, спасибо!", "Эки, четтирдим!"],
+        "что нового": ["Ничего особенного.", "Онза чок."],
+    };
+
+    const FAKE_GEMINI_TRANSLATIONS = {
+        "Тыва имеет богатую историю, начиная с древних времен...": "Тыва бурунгу үелерден бээр бай төөгүлүг...",
+        "В 13 веке Тува была частью Монгольской империи...": "13-кү чадада Тыва Моол империязының составынга турган...",
+        "В 20 веке Тува вошла в состав СССР...": "20-ги чадада Тыва ССРЭ-ниң составынче кирген...",
+        "Тувинский язык относится к тюркской языковой семье...": "Тыва дыл тюрк дылдар өг-бүлезинге хамааржыр...",
+        "В тувинском языке есть много заимствований из монгольского...": "Тыва дылда моол дылдан хөй үлегерлеттинген сөстер бар...",
+        "Современный тувинский алфавит основан на кириллице...": "Амгы тыва алфавит кириллицага үндезилеттинген...",
+        "Кызыл - столица Республики Тыва...": "Кызыл - Тыва Республиканың найысылалы...",
+        "Кызыл расположен в географическом центре Азии...": "Кызыл Азияның географиялык төвүнде турар...",
+        "В Кызыле находятся важные культурные и исторические объекты...": "Кызылда чугула культура болгаш төөгү объектилери бар...",
+        "Культура Тувы уникальна и разнообразна...": "Тываның культуразы онзагай болгаш янзы-бүрү...",
+        "В тувинской культуре особое место занимает горловое пение...": "Тыва культурада хоомей эң онзагай черни ээлеп турар...",
+        "Традиционные ремесла Тувы включают резьбу по камню и дереву...": "Тываның чаңчылчаан хол-үнери даш болгаш ыяш оюу-биле кылырын киирген...",
+        "Население Тувы состоит в основном из тувинцев...": "Тываның чурттакчылары колдуунда тывалардан тургустунган...",
+        "Тувинцы имеют богатую культуру и традиции...": "Тывалар бай культуралыг болгаш чаңчылдарлыг...",
+        "В Туве также проживают представители других национальностей...": "Тывада өске чоннарның төлээлери база чурттап турар...",
+        "Природа Тувы очень красива и разнообразна...": "Тываның бойдузу дыка чараш болгаш янзы-бүрү...",
+        "В Туве есть горы, степи, реки и озера...": "Тывада даглар, ховулар, хемнер болгаш көлдер бар...",
+        "В Туве водятся редкие виды животных и растений...": "Тывада ховар дириг амытаннар болгаш үнүштер бар...",
+        "Здравствуйте!": "Экии!",
+        "Хорошо, спасибо!": "Эки, четтирдим!",
+        "Ничего особенного.": "Онза чок.",
+    };
+
+    /**
+     * DeepSeek API-ге айтыг кылырының дыртыкчылаажы.
+     * @param {string} query - Хереглекчинин хайгаары.
+     * @returns {Promise<string[]>} - Хайгаарышкыннын туннелдеринин массиви.
+     */
+    async function fetchDeepSeekResults(query) {
+        // Чыгылган айтыгнын дыртыкчылаажы
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        //Хайгаашкынны чиикчилээр дээш айтыгны бичиилеп калыр
+        const lowerCaseQuery = query.toLowerCase();
+
+        // Дыртыкчы туннелдерни айтыгнын тугу базаар
+        if (FAKE_DEEPSEEK_RESPONSES[lowerCaseQuery]) {
+            return FAKE_DEEPSEEK_RESPONSES[lowerCaseQuery];
+        } else {
+             return ["Харамчок, чүү-даа тыппадым.", "Харамчок, чүү-даа тыппадым."]; // Четпес туннел
+        }
+
+        // DeepSeek API-ге херек айтыг (ажылдаар конфигурация херек)
+        /*
+        try {
+            const response = await fetch(`${DEEPSEEK_BASE_URL}?query=${encodeURIComponent(query)}&apiKey=${DEEPSEEK_API_KEY}`);
+            const data = await response.json();
+            if (response.ok) {
+                return data.results; // API-нин харыызында "data.results" деп херек оруунга солу
+            } else {
+                console.error("DeepSeek API error:", data.error || response.statusText);
+                return ["Хайгаашкын үезинде частырыг.", "Аразында хатог бар."];
+            }
+        } catch (error) {
+            console.error("DeepSeek API fetch error:", error);
+            return ["Хайгаашкын серверинге коштулганда частырыг.", "Поиск серверинге коштулганда хатог бар."];
+        }
+        */
+    }
+
+    /**
+     * Gemini API-ге айтыг кылырынын дыртыкчылаажы, текстти тыва дылче очулдурар.
+     * @param {string} text - Очулдурар текст.
+     * @returns {Promise<string>} - Очулдуртунган текст.
+     */
+    async function translateToTuvan(text) {
+        // Чыгылган айтыгнын дыртыкчылаажы
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Дыртыкчы очулганы тыпсыр
+        if (FAKE_GEMINI_TRANSLATIONS[text]) {
+            return FAKE_GEMINI_TRANSLATIONS[text];
+        } else {
+            return text;  // Очулга тыппаан болза эгезин тыпсыр
+        }
+
+        // Gemini API-ге херек айтыг (ажылдаар конфигурация херек)
+        /*
+        try {
+            const response = await fetch(GEMINI_BASE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: `Translate the following text to Tuvan: ${text}`
+                        }]
+                    }]
+                    // API-нин түлгүүрүн айтыгга немээрин утпа
+                }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+                return data.candidates[0].content.parts[0].text; // Очулганын херек оруунге солу
+            } else {
+                console.error("Gemini API error:", data.error || response.statusText);
+                return text; // Частырыг уезинде эге текстти тыпсыр
+            }
+        } catch (error) {
+            console.error("Gemini API fetch error:", error);
+            return text; // Частырыг уезинде эге текстти тыпсыр
+        }
+        */
+    }
+
+    /**
+    * Хайгаарышкыннын туннелдерин арнында коргузер.
+    * @param {string[]} results - Хайгаарышкыннын туннелдеринин массиви.
+    */
+    async function displaySearchResults(results) {
+        resultsContainer.innerHTML = ''; // Мурунку туннелдерни аштаар
+
+        for (const result of results) {
+            const translatedResult = await translateToTuvan(result); // Туннелди очулдурар
+            const resultCard = document.createElement('div');
+            resultCard.className = "rounded-lg shadow-md py-4 px-6 result-card";
+            resultCard.textContent = translatedResult;
+            resultsContainer.appendChild(resultCard);
+        }
+    }
+
+    /**
+     * Хайгаарышкын айтыын болгаш ону чорудар.
+     */
+    async function handleSearch() {
+        const query = searchInput.value;
+        if (!query.trim()) return; // Айтыг куруг болза, чуу-даа кылбас
+
+        const results = await fetchDeepSeekResults(query);
+        displaySearchResults(results);
+    }
+
+    // Событиелернин башкарыкчылары
+    searchButton.addEventListener('click', handleSearch);
+    searchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            handleSearch();
+        }
+    });
+
+    suggestBoxes.forEach(suggestBox => {
+        suggestBox.addEventListener('click', () => {
+            const query = suggestBox.dataset.query;
+            searchInput.value = query;
+            handleSearch();
+        });
+    });
+
+    // Чижек ажыглаашкыны (хереглелге)
+    // (async () => {
+    //     const results = await fetchDeepSeekResults("Тываның төөгүзү");
+    //     console.log(results);
+    //     const translated = await translateToTuvan(results[0]);
+    //     console.log(translated);
+    // })();
+    </script>
+</body>
+</html>
