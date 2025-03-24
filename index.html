@@ -85,9 +85,9 @@
     const suggestBoxes = document.querySelectorAll('.suggest-box');
 
     // API-ның болжамдыг дөстери болгаш чадалары
-    const DEEPSEEK_API_KEY = "YOUR_DEEPSEEK_API_KEY";  // API-ң херек түлгүүрүнге солу
+    const DEEPSEEK_API_KEY = "sk-5a1aeef0bde84b83acf5cf940893ce45";  // API-ң херек түлгүүрүнге солу
     const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1/search";  // URL-ды DeepSeek-тен тодарадып ал
-    const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";    // API-ң херек түлгүүрүнге солу
+    const GEMINI_API_KEY = "AIzaSyAFP5vacEXFQY1dEVvcj3L1G51B_kYsyvc";    // API-ң херек түлгүүрүнге солу
     const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";  // URL-ды Google-дан тодарадып ал
 
     // DeepSeek болгаш Gemini-ниң харыыларын дыртыкчылаар фиктивтиг медээлер
@@ -260,6 +260,109 @@
 
         const results = await fetchDeepSeekResults(query);
         displaySearchResults(results);
+    }
+
+    // Событиелернин башкарыкчылары
+    searchButton.addEventListener('click', handleSearch);
+    searchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            handleSearch();
+        }
+    });
+
+    suggestBoxes.forEach(suggestBox => {
+        suggestBox.addEventListener('click', () => {
+            const query = suggestBox.dataset.query;
+            searchInput.value = query;
+            handleSearch();
+        });
+    });
+
+    /**
+     * Функция для получения искомого контента через DeepSeek API.
+     * @param {string} query - Поисковый запрос.
+     * @param {string} apiKey - Ключ API для DeepSeek.
+     * @returns {Promise<string[]>} - Массив результатов поиска.
+     */
+    async function getDeepSeekContent(query, apiKey) {
+        const url = `${DEEPSEEK_BASE_URL}?query=${encodeURIComponent(query)}&apiKey=${apiKey}`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`DeepSeek API request failed: ${response.status}`);
+            }
+            const data = await response.json();
+            // Предполагается, что API возвращает массив строк.
+            // Измените это в соответствии с фактической структурой ответа DeepSeek API.
+            return data.results || []; // Замените "data.results" на фактический путь к данным
+        } catch (error) {
+            console.error("DeepSeek API Error:", error);
+            return [
+                "Хайгаашкын серверинге коштулганда частырыг.",
+                "Поиск серверинге коштулганда хатог бар."
+            ];
+        }
+    }
+
+    /**
+    * Очулдурар функция
+    * @param {string} text - Очулдурар текст
+    * @param {string} apiKey - Gemini API ключ
+    * @returns {Promise<string>} - Очулдуртунган текст
+    */
+    async function getGeminiTranslation(text, apiKey) {
+      const url = `${GEMINI_BASE_URL}?key=${apiKey}`;
+      try {
+          const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  contents: [{
+                      parts: [{
+                          text: `Translate the following text to Tuvan: ${text}`
+                      }]
+                  }]
+              }),
+          });
+
+          if (!response.ok) {
+              throw new Error(`Gemini API request failed: ${response.status}`);
+          }
+
+          const data = await response.json();
+          // console.log("Gemini API response:", data); // Для отладки
+          //return data.candidates[0].content.parts[0].text;
+          const translation = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!translation) {
+            throw new Error("Translation not found in Gemini response");
+          }
+          return translation;
+
+      } catch (error) {
+          console.error("Gemini API error:", error);
+          return "Очулдураанда частырыг";
+      }
+    }
+
+    /**
+     * Хайгаарышкын айтыын болгаш ону чорудар.
+     */
+    async function handleSearch() {
+        const query = searchInput.value;
+        if (!query.trim()) return;
+
+        try {
+            const deepSeekResults = await getDeepSeekContent(query, DEEPSEEK_API_KEY);
+            const translatedResults = await Promise.all(
+                deepSeekResults.map(result => getGeminiTranslation(result, GEMINI_API_KEY))
+            );
+            displaySearchResults(translatedResults);
+        } catch (error) {
+            console.error("Search Error:", error);
+            resultsContainer.innerHTML = `<div class="rounded-lg shadow-md py-4 px-6 bg-red-100 text-red-800">${error.message}</div>`;
+        }
     }
 
     // Событиелернин башкарыкчылары
